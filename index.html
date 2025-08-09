@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TED Talks Recommender</title>
+    <!-- Tailwind CSS CDN for modern styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for consistent typography and enhanced visuals */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8f9fa; /* Light gray background for a clean look */
+            color: #343a40; /* Dark text for readability */
+        }
+        .container {
+            max-width: 800px; /* Constrain content width for better readability */
+            margin: 40px auto; /* Center the container horizontally */
+            padding: 30px;
+            background-color: #ffffff;
+            border-radius: 12px; /* Softly rounded corners for a modern feel */
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1); /* Subtle shadow for depth */
+        }
+        .input-group input, .input-group button {
+            border-radius: 8px; /* Consistent rounded corners for interactive elements */
+        }
+        .recommendation-card {
+            background-color: #f0f4f8; /* Slightly darker background for recommendation cards */
+            border-left: 5px solid #007bff; /* Vibrant blue accent border for emphasis */
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05); /* Light shadow for card separation */
+        }
+        .recommendation-card strong {
+            color: #0056b3; /* Darker blue for speaker names to stand out */
+        }
+        .loading-spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-left-color: #007bff; /* Blue spinner color */
+            border-radius: 50%; /* Makes it circular */
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite; /* Continuous spinning animation */
+            display: none; /* Hidden by default, shown when loading */
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="p-4">
+    <div class="container">
+        <h1 class="text-4xl font-extrabold text-center mb-6 text-gray-800">
+            TED Talks Recommender 🗣️
+        </h1>
+        <p class="text-center text-lg text-gray-600 mb-8">
+            Enter a TED Talk speaker's name to get recommendations for similar talks.
+        </p>
+
+        <div class="flex flex-col md:flex-row gap-4 mb-8">
+            <input
+                type="text"
+                id="speakerInput"
+                placeholder="E.g., Alexandra Auer"
+                class="flex-grow p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg"
+            >
+            <button
+                id="recommendButton"
+                class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 text-lg flex items-center justify-center gap-2"
+            >
+                Get Recommendations
+                <div id="loadingSpinner" class="loading-spinner"></div>
+            </button>
+        </div>
+
+        <div id="messageBox" class="text-center text-red-600 mb-4 font-semibold hidden"></div>
+
+        <div id="recommendationsList" class="space-y-4">
+            <!-- Recommendations will be dynamically inserted here by JavaScript -->
+            <p class="text-center text-gray-500" id="initialMessage">
+                Your recommendations will appear here.
+            </p>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Get references to DOM elements
+            const speakerInput = document.getElementById('speakerInput');
+            const recommendButton = document.getElementById('recommendButton');
+            const recommendationsList = document.getElementById('recommendationsList');
+            const messageBox = document.getElementById('messageBox');
+            const loadingSpinner = document.getElementById('loadingSpinner');
+            const initialMessage = document.getElementById('initialMessage');
+
+            // Helper function to display messages to the user
+            function showMessage(message, type = 'error') {
+                messageBox.textContent = message;
+                messageBox.classList.remove('hidden'); // Make message box visible
+                // Apply styling based on message type (error or success/info)
+                if (type === 'error') {
+                    messageBox.classList.remove('text-green-600', 'text-gray-600');
+                    messageBox.classList.add('text-red-600');
+                } else if (type === 'success') {
+                    messageBox.classList.remove('text-red-600', 'text-gray-600');
+                    messageBox.classList.add('text-green-600');
+                } else { // For 'info' messages
+                    messageBox.classList.remove('text-red-600', 'text-green-600');
+                    messageBox.classList.add('text-gray-600');
+                }
+            }
+
+            // Helper function to hide the message box
+            function hideMessage() {
+                messageBox.classList.add('hidden');
+                messageBox.textContent = ''; // Clear message content
+            }
+
+            // Helper function to toggle the loading state of the button and spinner
+            function toggleLoading(isLoading) {
+                if (isLoading) {
+                    recommendButton.disabled = true; // Disable button to prevent multiple clicks
+                    loadingSpinner.style.display = 'block'; // Show spinner
+                    recommendButton.classList.add('opacity-75', 'cursor-not-allowed'); // Visual feedback for disabled state
+                } else {
+                    recommendButton.disabled = false; // Enable button
+                    loadingSpinner.style.display = 'none'; // Hide spinner
+                    recommendButton.classList.remove('opacity-75', 'cursor-not-allowed'); // Remove visual feedback
+                }
+            }
+
+            // Event listener for the "Get Recommendations" button click
+            recommendButton.addEventListener('click', async () => {
+                const speakerName = speakerInput.value.trim(); // Get and trim input value
+                hideMessage(); // Clear any previous messages
+                recommendationsList.innerHTML = ''; // Clear previous recommendations
+                initialMessage.style.display = 'none'; // Hide the initial placeholder message
+
+                // Validate input
+                if (!speakerName) {
+                    showMessage("Please enter a speaker's name.", 'error');
+                    return; // Stop execution if input is empty
+                }
+
+                toggleLoading(true); // Show loading indicator
+
+                try {
+                    // Make an asynchronous POST request to your Flask backend
+                    // Ensure your Flask backend is running on http://127.0.0.1:5000
+                    const response = await fetch('http://127.0.0.1:5000/recommend', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json', // Specify JSON content type
+                        },
+                        body: JSON.stringify({ speaker_name: speakerName }), // Send speaker name as JSON
+                    });
+
+                    const data = await response.json(); // Parse the JSON response
+
+                    // Handle HTTP errors (e.g., 400, 500)
+                    if (!response.ok) {
+                        showMessage(data.error || "An unknown error occurred on the server.", 'error');
+                        return;
+                    }
+
+                    // Handle specific messages from the backend (e.g., no recommendations found)
+                    if (data.message) {
+                        showMessage(data.message, 'info');
+                    } else if (data.length === 0) {
+                        // Fallback message if backend returns an empty array without a specific message
+                        showMessage(`No recommendations found for speaker: "${speakerName}". Please try another speaker.`, 'info');
+                    } else {
+                        // Display the recommendations
+                        data.forEach(talk => {
+                            const talkCard = document.createElement('div');
+                            talkCard.className = 'recommendation-card'; // Apply card styling
+                            talkCard.innerHTML = `
+                                <p class="text-lg mb-1"><strong>Speaker:</strong> ${talk.main_speaker}</p>
+                                <p class="text-md text-gray-700">${talk.details}</p>
+                            `;
+                            recommendationsList.appendChild(talkCard); // Add card to the list
+                        });
+                        showMessage(`Recommendations for "${speakerName}" loaded successfully!`, 'success');
+                    }
+
+                } catch (error) {
+                    console.error('Error fetching recommendations:', error);
+                    showMessage("Failed to connect to the recommendation service. Please ensure the backend is running and accessible.", 'error');
+                } finally {
+                    toggleLoading(false); // Always hide loading indicator after request completes
+                }
+            });
+        });
+    </script>
+</body>
+</html>

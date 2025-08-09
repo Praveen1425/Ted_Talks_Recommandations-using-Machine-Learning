@@ -1,0 +1,10 @@
+numpy
+pandas
+matplotlib
+nltk
+scipy
+wordcloud
+scikit-learn
+flask
+gunicorn
+python-dotenv
